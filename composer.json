@@ -1,0 +1,12 @@
+{
+  "name": "ulsdevteam/subtitle_derivative",
+  "type": "drupal-module-custom",
+  "description": "A Drupal module providing a custom Action to transform subtitle media to another media",
+  "keywords": ["Drupal"],
+  "license": "MIT",
+  "minimum-stability": "dev",
+  "prefer-stable": true,
+  "require": {
+    "mantas-done/subtitles": "^1.0"
+  }
+}
