@@ -2,7 +2,7 @@
 
 This module provides a Drupal action for Islandora that transforms the contents of media and saves it as a new media on the same node. An example use case is generating plaintext from WEBVTT, or converting Subrip Text to WEBVTT.
 
-This module uses [mantis-done/subtitles](https://github.com/mantas-done/subtitles) for the transforms.
+This module uses [mantas-done/subtitles](https://github.com/mantas-done/subtitles) for the transforms.
 
 ## Configuration
 

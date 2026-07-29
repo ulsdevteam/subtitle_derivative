@@ -7,6 +7,6 @@
   "minimum-stability": "dev",
   "prefer-stable": true,
   "require": {
-    "mantas-done/subtitles": "^1.0"
+    "mantas-done/subtitles": "^2.0"
   }
 }
