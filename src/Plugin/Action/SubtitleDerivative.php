@@ -13,6 +13,7 @@ use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\token\TokenInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
+use Drupal\Core\Logger\LoggerChannelFactory;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\file\FileRepository;
 use Drupal\file\Entity\File;
@@ -70,6 +71,13 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
     protected $file_repository;
 
     /**
+     * Logger.
+     * 
+     * @var Drupal\Core\Logger\LoggerChannelFactory
+     */
+    protected $logger;
+
+    /**
      * Cache of source term for executeMultiple.
      * 
      * @var \Drupal\taxonomy\TermInterface|null
@@ -82,7 +90,7 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
      * @var \Drupal\taxonomy\TermInterface|null
      */
     protected $dest_term;
-	
+
      /**
      * Constructor for the action.
      * 
@@ -114,7 +122,8 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
             TokenInterface $token,
             EntityTypeManagerInterface $entity_type_manager,
             MediaSourceService $media_source,
-            FileRepository $file_repository
+	    FileRepository $file_repository,
+	    LoggerChannelFactory $logger_factory
     ) {
         $this->utils = $utils;
         $this->config = $config->get('system.file');
@@ -122,6 +131,7 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
         $this->entity_type_manager = $entity_type_manager;
         $this->media_source = $media_source;
         $this->file_repository = $file_repository;
+	$this->logger = $logger_factory->get('subtitle_derivative');
         parent::__construct($configuration, $plugin_id, $plugin_definition);
     }
 
@@ -138,7 +148,8 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
             $container->get('token'),
             $container->get('entity_type.manager'),
             $container->get('islandora.media_source_service'),
-            $container->get('file.repository')
+	    $container->get('file.repository'),
+	    $container->get('logger.factory')
         );
     }
 
@@ -248,8 +259,8 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
             ]);
             return;
         }
-		
-		$this->dest_term = $this->utils->getTermForUri($this->configuration['dest_term_uri']);
+
+        $this->dest_term = $this->utils->getTermForUri($this->configuration['dest_term_uri']);
         if (!$this->dest_term) {
             $this->logger->error('No source term for %uri found; aborting multiple %action actions.', [
                 '%uri' => $this->configuration['dest_term_uri'],
@@ -257,9 +268,9 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
             ]);
             return;
         }
-		
-        parent::executeMultiple();
-	}
+
+        parent::executeMultiple($objects);
+    }
 
     /**
      * {@inheritdoc}
@@ -283,7 +294,7 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
             return;
         }
 
-		$source_media = $this->utils->getMediaWithTerm($entity, $source_term);
+        $source_media = $this->utils->getMediaWithTerm($entity, $source_term);
         if (!$source_media) {
             $this->logger->error('No source media of %entity for %uri found; aborting %action action.', [
                 '%entity' => $entity->getId(),
@@ -293,7 +304,7 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
             return;
         }
 
-		$source_file = $this->media_source->getSourceFile($source_media);
+        $source_file = $this->media_source->getSourceFile($source_media);
         if (!$source_file) {
             $this->logger->error('No source file of %media; aborting %action action.', [
                 '%media' => $source_media->getId(),
@@ -302,7 +313,7 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
             return;
         }
 
-		$token_data = [
+        $token_data = [
             'node' => $entity,
             'media' => $source_media,
             'term' => $dest_term,
@@ -321,8 +332,8 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
                 '@error' => $e->getMessage()
             ]);
             return;
-		}
-		
+        }
+
         $stream = fopen('php://temp', 'r+');
         fwrite($stream, $transformed_text);
         rewind($stream);
