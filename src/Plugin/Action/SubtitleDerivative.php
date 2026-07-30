@@ -69,6 +69,20 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
      */
     protected $file_repository;
 
+    /**
+     * Cache of source term for executeMultiple.
+     * 
+     * @var \Drupal\taxonomy\TermInterface|null
+     */
+    protected $source_term;
+
+    /**
+     * Cache of destination term for executeMultiple.
+     * 
+     * @var \Drupal\taxonomy\TermInterface|null
+     */
+    protected $dest_term;
+	
      /**
      * Constructor for the action.
      * 
@@ -137,8 +151,9 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
             'dest_term_uri' => '',
             'dest_media_type' => '',
             'dest_mime_type' => '',
+            'dest_format' => '',
             'dest_scheme' => $this->config->get('default_scheme'),
-            'dest_path' => '[date:custom:Y]-[date:custom:m]/[node:nid]_transformed.html'
+            'dest_path' => '[date:custom:Y]-[date:custom:m]/[node:nid]_transformed.ext'
         ];
     }
 
@@ -224,16 +239,70 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
     /**
      * {@inheritdoc}
      */
+    public function executeMultiple(array $objects) {
+        $this->source_term = $this->utils->getTermForUri($this->configuration['source_term_uri']);
+        if (!$this->source_term) {
+            $this->logger->error('No source term for %uri found; aborting multiple %action actions.', [
+                '%uri' => $this->configuration['source_term_uri'],
+                '%action' => $this->getPluginId(),
+            ]);
+            return;
+        }
+		
+		$this->dest_term = $this->utils->getTermForUri($this->configuration['dest_term_uri']);
+        if (!$this->dest_term) {
+            $this->logger->error('No source term for %uri found; aborting multiple %action actions.', [
+                '%uri' => $this->configuration['dest_term_uri'],
+                '%action' => $this->getPluginId(),
+            ]);
+            return;
+        }
+		
+        parent::executeMultiple();
+	}
+
+    /**
+     * {@inheritdoc}
+     */
     public function execute($entity = NULL) {
-        $source_term = $this->utils->getTermForUri($this->configuration['source_term_uri']);
-        $this->check_exists($source_term, "Could not locate source term with uri: " . $this->configuration['source_term_uri']);
-        $source_media = $this->utils->getMediaWithTerm($entity, $source_term);
-        $this->check_exists($source_media, "Could not locate source media.");
-        $source_file = $this->media_source->getSourceFile($source_media);
-        $this->check_exists($source_file, "Could not locate source media file.");
-        $dest_term = $this->utils->getTermForUri($this->configuration['dest_term_uri']);
-        $this->check_exists($dest_term, "Could not locate destination term with uri: " . $this->configuration['dest_term_uri']);
-        $token_data = [
+        $source_term = $this->source_term ?? $this->utils->getTermForUri($this->configuration['source_term_uri']);
+        if (!$source_term) {
+            $this->logger->error('No source term for %uri found; aborting %action action.', [
+                '%uri' => $this->configuration['source_term_uri'],
+                '%action' => $this->getPluginId(),
+            ]);
+            return;
+        }
+
+        $dest_term = $this->dest_term ?? $this->utils->getTermForUri($this->configuration['dest_term_uri']);
+        if (!$dest_term) {
+            $this->logger->error('No source term for %uri found; aborting %action action.', [
+                '%uri' => $this->configuration['dest_term_uri'],
+                '%action' => $this->getPluginId(),
+            ]);
+            return;
+        }
+
+		$source_media = $this->utils->getMediaWithTerm($entity, $source_term);
+        if (!$source_media) {
+            $this->logger->error('No source media of %entity for %uri found; aborting %action action.', [
+                '%entity' => $entity->getId(),
+                '%uri' => $this->configuration['source_term_uri'],
+                '%action' => $this->getPluginId(),
+            ]);
+            return;
+        }
+
+		$source_file = $this->media_source->getSourceFile($source_media);
+        if (!$source_file) {
+            $this->logger->error('No source file of %media; aborting %action action.', [
+                '%media' => $source_media->getId(),
+                '%action' => $this->getPluginId(),
+            ]);
+            return;
+        }
+
+		$token_data = [
             'node' => $entity,
             'media' => $source_media,
             'term' => $dest_term,
@@ -241,27 +310,31 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
         $dest_path = $this->configuration['dest_scheme'] . '://' . $this->token->replace($this->configuration['dest_path'], $token_data);
         $source_uri = $source_file->getFileUri();
         $source_file_contents = file_get_contents($source_uri);
-	$transformed_text = '';
+        $transformed_text = NULL;
         try {
             $subtitles = (new Subtitles())->loadFromString($source_file_contents);
             $transformed_text = $subtitles->content($this->configuration['dest_format']);
         } catch (\Done\Subtitles\Code\Exceptions\UserException $e) {
-            \Drupal::logger('subtitles_derivative')->error($e->getMessage());
-        }
-        if ($transformed_text) {
-            $stream = fopen('php://temp', 'r+');
-            fwrite($stream, $transformed_text);
-            rewind($stream);
-            $this->media_source->putToNode(
-                $entity,
-                $this->get_media_type(),
-                $dest_term,
-                $stream,
-                $this->configuration['dest_mime_type'],
-                $dest_path
-            );
-            fclose($stream);
-        }
+            $this->logger->error('Transform of %source_uri with %format failed with @error.', [
+                '%source_uri' => $source_uri,
+                '%format' => $this->configuration['dest_format'],
+                '@error' => $e->getMessage()
+            ]);
+            return;
+		}
+		
+        $stream = fopen('php://temp', 'r+');
+        fwrite($stream, $transformed_text);
+        rewind($stream);
+        $this->media_source->putToNode(
+            $entity,
+            $this->get_media_type(),
+            $dest_term,
+            $stream,
+            $this->configuration['dest_mime_type'],
+            $dest_path
+        );
+        fclose($stream);
     }
 
     /**
@@ -284,24 +357,6 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
             return $this->entity_type_manager->getStorage('media_type')->load($id);
         }
         return '';
-    }
-
-    /**
-     * Check if an entity exists, throw an exception if it doesn't.
-     * 
-     * @param object $object
-     *   Any object.
-     * 
-     * @param string $message
-     *   Message to include in the exception if the object does not exist.
-     * 
-     * @throws \RuntimeException
-     *   Thrown with the given message if the object does not exist.
-     */
-    protected function check_exists(&$object, $message) {
-        if (!$object) {
-            throw new \RuntimeException($message, 500);
-        }
     }
 
     /**
