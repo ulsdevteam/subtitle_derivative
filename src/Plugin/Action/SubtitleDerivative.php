@@ -223,11 +223,12 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
             '#required' => TRUE,
         ];
         $form['dest_path'] = [
-            '#type' => 'textfield',
+            '#type' => 'token',
             '#title' => $this->t('File path for destination file'),
             '#default_value' => $this->configuration['dest_path'],
             '#required' => TRUE,
             '#description' => $this->t('Path within the upload destination where the derivative file will be stored. Includes the filename and optional extension.'),
+			'#token_types' => ['node', 'media', 'term'],
         ];
         return $form;
     }
