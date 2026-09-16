@@ -122,8 +122,8 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
             TokenInterface $token,
             EntityTypeManagerInterface $entity_type_manager,
             MediaSourceService $media_source,
-	    FileRepository $file_repository,
-	    LoggerChannelFactory $logger_factory
+        FileRepository $file_repository,
+        LoggerChannelFactory $logger_factory
     ) {
         $this->utils = $utils;
         $this->config = $config->get('system.file');
@@ -131,7 +131,7 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
         $this->entity_type_manager = $entity_type_manager;
         $this->media_source = $media_source;
         $this->file_repository = $file_repository;
-	$this->logger = $logger_factory->get('subtitle_derivative');
+    $this->logger = $logger_factory->get('subtitle_derivative');
         parent::__construct($configuration, $plugin_id, $plugin_definition);
     }
 
@@ -148,8 +148,8 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
             $container->get('token'),
             $container->get('entity_type.manager'),
             $container->get('islandora.media_source_service'),
-	    $container->get('file.repository'),
-	    $container->get('logger.factory')
+        $container->get('file.repository'),
+        $container->get('logger.factory')
         );
     }
 
@@ -222,13 +222,30 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
             '#default_value' => $this->configuration['dest_scheme'],
             '#required' => TRUE,
         ];
-        $form['dest_path'] = [
+        $form['dest_path_group'] = [
+            '#type' => 'container',
+            '#attributes' => [
+                'role' => 'group',
+                'aria-labelledby' => 'dest-path-title',
+            ],
+        ];
+        $form['dest_path_group']['dest_path'] = [
             '#type' => 'textfield',
             '#title' => $this->t('File path for destination file'),
             '#default_value' => $this->configuration['dest_path'],
             '#required' => TRUE,
             '#description' => $this->t('Path within the upload destination where the derivative file will be stored. Includes the filename and optional extension.'),
+            '#token_types' => ['node', 'media', 'term'],
         ];
+        $form['dest_path_group']['dest_path_token_tree'] = [
+            '#type' => 'token_tree_link',
+            '#theme' => 'token_tree_link',
+            '#dialog' => TRUE,
+            '#click_insert' => TRUE,
+            '#target_id' => 'dest-path-field',
+            '#token_types' => ['node', 'media', 'term'],
+        ];
+        
         return $form;
     }
 
@@ -297,7 +314,7 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
         $source_media = $this->utils->getMediaWithTerm($entity, $source_term);
         if (!$source_media) {
             $this->logger->error('No source media of %entity for %uri found; aborting %action action.', [
-                '%entity' => $entity->getId(),
+                '%entity' => $entity->id(),
                 '%uri' => $this->configuration['source_term_uri'],
                 '%action' => $this->getPluginId(),
             ]);
@@ -307,7 +324,7 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
         $source_file = $this->media_source->getSourceFile($source_media);
         if (!$source_file) {
             $this->logger->error('No source file of %media; aborting %action action.', [
-                '%media' => $source_media->getId(),
+                '%media' => $source_media->id(),
                 '%action' => $this->getPluginId(),
             ]);
             return;
