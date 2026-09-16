@@ -314,7 +314,7 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
         $source_media = $this->utils->getMediaWithTerm($entity, $source_term);
         if (!$source_media) {
             $this->logger->error('No source media of %entity for %uri found; aborting %action action.', [
-                '%entity' => $entity->getId(),
+                '%entity' => $entity->id(),
                 '%uri' => $this->configuration['source_term_uri'],
                 '%action' => $this->getPluginId(),
             ]);
@@ -324,7 +324,7 @@ class SubtitleDerivative extends ConfigurableActionBase implements ContainerFact
         $source_file = $this->media_source->getSourceFile($source_media);
         if (!$source_file) {
             $this->logger->error('No source file of %media; aborting %action action.', [
-                '%media' => $source_media->getId(),
+                '%media' => $source_media->id(),
                 '%action' => $this->getPluginId(),
             ]);
             return;
